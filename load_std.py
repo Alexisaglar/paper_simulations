@@ -1,6 +1,10 @@
 import pandas as pd
 import glob
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import matplotlib.dates as mdates
+
+
 
 # Pattern to match your CSV files
 file_pattern = 'load_profiles/*.csv'
@@ -13,48 +17,97 @@ combined_df = pd.DataFrame()
 for i, file_path in enumerate(file_paths):
     # Read the current CSV file
     temp_df = pd.read_csv(file_path)
+
+    # Correct the '24:00:00' time strings and prepend a base date for conversion
+    temp_df['time'] = temp_df['time'].str.replace('24:00:00', '00:00:00')
+    base_date = '2024-01-01 '
+    temp_df['time'] = base_date + temp_df['time']
     
-    # Rename 'load consumption' to a unique name, e.g., using the file index or name
-    column_name = f'profile_{i+1}'  # Or extract a meaningful name from file_path
+    # # Convert 'time' to datetime
+    temp_df['datetime'] = pd.to_datetime(temp_df['time'], format='%Y-%m-%d %H:%M:%S')
+
+    # # Adjust the datetime for those that were originally '24:00:00'
+    # temp_df.loc[temp_df['datetime'].dt.hour == 0, 'datetime'] += pd.Timedelta(days=1)
+
+    # Set 'datetime' as the index
+    temp_df.set_index('datetime', inplace=True)
+
+    # Drop the original 'time' column
+    temp_df.drop('time', axis=1, inplace=True)
+
+    # Moving last value to first row
+    temp_df = pd.concat([temp_df.iloc[0:], temp_df.iloc[:-1]], ignore_index=False)
+
+    # Rename 'mult' to a unique name using the file index or name
+    column_name = f'profile_{i+1}'
     temp_df.rename(columns={'mult': column_name}, inplace=True)
-    
-    temp_df.set_index('time', inplace=True)
 
     # If it's the first file, initialize combined_df with this data
     if combined_df.empty:
         combined_df = temp_df
     else:
         combined_df = combined_df.join(temp_df, how='outer')
-        print(i)
-
-# Ensure the 'time' column is the DataFrame index (optional)
-# combined_df.set_index('time', inplace=True)
-combined_df.to_csv('file.csv')
 
 # Identify the Maximum Value in Each Column
 max_values = combined_df.max()
-
-# Step 2: Normalize Each Column by Its Maximum Value
-normalized_df = combined_df.divide(0.75, axis='columns')
-
-# Step 3: Calculate the Average Profile
-average_profile = normalized_df.mean(axis=1)
+combined_df.index = pd.to_datetime(combined_df.index)
 
 # Calculate the sum of energy consumption across all profiles for each timestamp
 total_energy_consumption = combined_df.sum(axis=1)
 
-# Plotting the Total Energy Consumption
-plt.figure(figsize=(10, 6))
-total_energy_consumption.plot(title='Total Energy Consumption Over Time')
-plt.xlabel('Time')
-plt.ylabel('Total Energy Consumption')
-plt.grid(True)
-plt.show()
+# Step 2: Normalize Each Column by Maximum power value 
+normalized_df = combined_df.divide(total_energy_consumption.max()/100, axis='columns')
 
-# Plotting the Average Profile
-plt.figure(figsize=(10, 6))
-average_profile.plot(title='Average Profile Based on Maximum Values')
-plt.xlabel('Time')
-plt.ylabel('Normalized Consumption')
-plt.grid(True)
+# Step 3: Calculate the Average Profile
+average_profile = normalized_df.mean(axis=1)
+
+# Step 4: Apply a rolling mean to smooth the data
+rolling_window = 60 # for example, a 10 minute rolling window
+smoothed_total_energy_consumption = average_profile.rolling(window=rolling_window).mean()
+
+# Step 5: Calculate the seasonal adjustments
+autumn_adjustment = smoothed_total_energy_consumption * 1.20
+winter_adjustment = smoothed_total_energy_consumption * 1.35
+spring_adjustment = smoothed_total_energy_consumption * 1.15
+
+# Set the figure size and resolution
+plt.figure(figsize=(8, 4), dpi=300)
+
+# Set the plot font to Arial, which is a sans-serif font
+plt.rc('font', family='Arial')
+
+# Plotting the seasonal adjustments
+winter_adjustment.plot(label='Winter', lw=2)
+autumn_adjustment.plot(label='Autumn', lw=2)
+smoothed_total_energy_consumption.plot(label='Summer', lw=2)
+spring_adjustment.plot(label='Spring', lw=2)
+
+# Labeling the axes with a larger font for clarity
+plt.xlabel('Time', fontsize=12)
+plt.ylabel('Total Energy Consumption', fontsize=12)
+
+# Setting the title with a larger font size and bold font weight
+plt.title('Energy Consumption Per Season', fontsize=14, fontweight='bold')
+
+# Improving the x-axis ticks to be more readable and appropriately spaced
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+
+# Setting a grid for better readability
+plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+
+# Adding a legend with a smaller font size to not overpower the graph
+plt.legend(fontsize=10)
+
+# Removing the top and right spines for a cleaner look
+# plt.gca().spines['top'].set_visible(False)
+# plt.gca().spines['right'].set_visible(False)
+
+# Adjust the layout to make sure everything fits without overlapping
+# plt.tight_layout()
+
+# Save the plot as a high-resolution PNG file
+plt.savefig('IEEE_formatted_plot.png', format='png')
+
+# Show the plot
 plt.show()
