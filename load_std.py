@@ -4,8 +4,6 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import matplotlib.dates as mdates
 
-
-
 # Pattern to match your CSV files
 file_pattern = 'load_profiles/*.csv'
 file_paths = glob.glob(file_pattern)
@@ -26,9 +24,6 @@ for i, file_path in enumerate(file_paths):
     # # Convert 'time' to datetime
     temp_df['datetime'] = pd.to_datetime(temp_df['time'], format='%Y-%m-%d %H:%M:%S')
 
-    # # Adjust the datetime for those that were originally '24:00:00'
-    # temp_df.loc[temp_df['datetime'].dt.hour == 0, 'datetime'] += pd.Timedelta(days=1)
-
     # Set 'datetime' as the index
     temp_df.set_index('datetime', inplace=True)
 
@@ -36,7 +31,9 @@ for i, file_path in enumerate(file_paths):
     temp_df.drop('time', axis=1, inplace=True)
 
     # Moving last value to first row
-    temp_df = pd.concat([temp_df.iloc[0:], temp_df.iloc[:-1]], ignore_index=False)
+    last_row = temp_df.iloc[-1:]
+    last_row['mult'] = temp_df['mult'].iloc[0]
+    temp_df = pd.concat([last_row, temp_df.iloc[:-1]], ignore_index=False)
 
     # Rename 'mult' to a unique name using the file index or name
     column_name = f'profile_{i+1}'
@@ -64,6 +61,7 @@ average_profile = normalized_df.mean(axis=1)
 # Step 4: Apply a rolling mean to smooth the data
 rolling_window = 60 # for example, a 10 minute rolling window
 smoothed_total_energy_consumption = average_profile.rolling(window=rolling_window).mean()
+smoothed_total_energy_consumption = average_profile.rolling(window=rolling_window, min_periods=1).mean()
 
 # Step 5: Calculate the seasonal adjustments
 autumn_adjustment = smoothed_total_energy_consumption * 1.20
@@ -72,10 +70,8 @@ spring_adjustment = smoothed_total_energy_consumption * 1.15
 
 # Set the figure size and resolution
 plt.figure(figsize=(8, 4), dpi=300)
-
 # Set the plot font to Arial, which is a sans-serif font
 plt.rc('font', family='Arial')
-
 # Plotting the seasonal adjustments
 winter_adjustment.plot(label='Winter', lw=2)
 autumn_adjustment.plot(label='Autumn', lw=2)
@@ -85,29 +81,12 @@ spring_adjustment.plot(label='Spring', lw=2)
 # Labeling the axes with a larger font for clarity
 plt.xlabel('Time', fontsize=12)
 plt.ylabel('Total Energy Consumption', fontsize=12)
-
 # Setting the title with a larger font size and bold font weight
 plt.title('Energy Consumption Per Season', fontsize=14, fontweight='bold')
-
-# Improving the x-axis ticks to be more readable and appropriately spaced
-plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
-plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-
 # Setting a grid for better readability
 plt.grid(True, which='both', linestyle='--', linewidth=0.5)
-
 # Adding a legend with a smaller font size to not overpower the graph
 plt.legend(fontsize=10)
-
-# Removing the top and right spines for a cleaner look
-# plt.gca().spines['top'].set_visible(False)
-# plt.gca().spines['right'].set_visible(False)
-
-# Adjust the layout to make sure everything fits without overlapping
-# plt.tight_layout()
-
 # Save the plot as a high-resolution PNG file
 plt.savefig('IEEE_formatted_plot.png', format='png')
-
-# Show the plot
 plt.show()
