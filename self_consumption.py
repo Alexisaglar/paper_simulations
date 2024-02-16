@@ -1,12 +1,3 @@
-######## This is how this script will determine both cases ######
-# 1. Renewable Energy Source Alone (Without Battery):
-# Self-Consumption (%) = (Energy Consumed On-Site / Total Energy Generated) * 100
-# 2. Renewable Energy Source with Battery Storage:
-# Energy Stored in Battery = Energy Generated - Energy Consumed On-Site (when generation exceeds consumption)
-# Energy Discharged from Battery = Energy Consumed On-Site - Energy Generated (when consumption exceeds generation)
-# Total Energy Generated = Sum of Energy Consumed On-Site + Energy Stored in Battery (when generation exceeds consumption)
-# Self-Consumption (%) = (Energy Consumed On-Site + Energy Discharged from Battery) / Total Energy Generated) * 100
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd

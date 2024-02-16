@@ -8,8 +8,6 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from matplotlib.ticker import MaxNLocator
 
-
-
 series_panel = 5
 parallel_panel = 3 
 #CFPV Data
@@ -19,11 +17,6 @@ slope_2x_enhance = (-1/100)
 constant_2x_enhance = 20
 irradiance = np.linspace(0, 1000, 50)  # From 0 to 1 sun (1000 W/m^2)
 temperature = np.linspace(0, 25, 50)  # Temperature range
-import numpy as np
-import pandas as pd
-from pvlib import pvsystem
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 
 def pv_generation(irradiance, temperature, series_panel, parallel_panel, PCE_ref_CFPV, parameters):
     # Preallocate the output array
@@ -66,16 +59,12 @@ def pv_generation(irradiance, temperature, series_panel, parallel_panel, PCE_ref
 # Generate a 2D array of power outputs
 P = pv_generation(irradiance, temperature, series_panel, parallel_panel, PCE_ref_CFPV, parameters)
 
-
 # Calculate other performance metrics over the grid
 PCE_at_GHI = slope_2x_enhance * irradiance[:, np.newaxis] + constant_2x_enhance
 P_PCE_at_GHI = np.full_like(P, 20)
 P_CFPV = P * (PCE_at_GHI / PCE_ref_CFPV)
 
-# Now P, P_CFPV, and PCE_at_GHI are all 2D arrays of the same shape
-
 # Create meshgrids for plotting
-# I, T = np.meshgrid(irradiance, temperature)
 T, I = np.meshgrid(temperature, irradiance)
 
 # Plotting the 3D surfaces
@@ -88,36 +77,9 @@ surf1 = ax.plot_wireframe(T, I, P, cmap='viridis', rstride=1, cstride=1, alpha=0
 # Plot for the enhanced technology
 surf2 = ax.plot_surface(T, I, P_CFPV, cmap='viridis', rstride=1, cstride=1, alpha=0.8, label='Enhanced Tech')
 
-
-# # Fill between planes
-# for i in range(len(temperature)-1):
-#     for j in range(len(irradiance)-1):
-#         # Define the vertices of the rectangle that fills in between the two surfaces
-#         verts = [
-#             (T[j, i], I[j, i], P[j, i]),  # Point on the first surface
-#             (T[j, i+1], I[j, i+1], P[j, i+1]),  # Next point on the first surface
-#             (T[j, i+1], I[j, i+1], P_CFPV[j, i+1]),  # Corresponding point on the second surface
-#             (T[j, i], I[j, i], P_CFPV[j, i])  # Next point on the second surface
-#         ]
-        
-#         # Create a polygon and add it to the plot
-#         poly = Poly3DCollection([verts], facecolors='red', alpha=0.5)
-#         ax.add_collection3d(poly)
-
 # Color bar for relative PCE
 cbar = fig.colorbar(plt.cm.ScalarMappable(cmap='viridis'), shrink=0.5, aspect=5)
 cbar.set_label('Relative PCE')
-
-# plt.show()
-
-
-# # Improving the aesthetics for professional publication
-# ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-# ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-# ax.zaxis.set_major_locator(MaxNLocator(integer=True))
-
-ax.tick_params(axis='both', which='major', labelsize=10, direction='out')
-ax.tick_params(axis='both', which='minor', labelsize=8, direction='out')
 
 ax.set_ylabel('Irradiance (W/m²)', fontsize=12, labelpad=10)
 ax.set_xlabel('Temperature (°C)', fontsize=12, labelpad=10)
@@ -138,11 +100,4 @@ cbar.set_label('Relative PCE', fontsize=12)
 cbar.ax.tick_params(labelsize=10)
 
 # Set title with larger font
-ax.set_title('Power Output for Two Different Solar PV Materials', fontsize=14, pad=20)
-
-# plt.tight_layout()
-
-# Save the figure with high resolution
-# plt.savefig('/mnt/data/plot_high_res.png', dpi=300, bbox_inches='tight')
-
 plt.show()

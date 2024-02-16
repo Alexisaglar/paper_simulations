@@ -68,6 +68,8 @@ autumn_adjustment = smoothed_total_energy_consumption * 1.20
 winter_adjustment = smoothed_total_energy_consumption * 1.35
 spring_adjustment = smoothed_total_energy_consumption * 1.15
 
+seasons = pd.DataFrame({'summer': average_profile, 'spring': spring_adjustment, 'autumn': autumn_adjustment, 'winter': winter_adjustment})
+seasons.to_csv('seasons_load.csv')
 # Set the figure size and resolution
 plt.figure(figsize=(8, 4), dpi=300)
 # Set the plot font to Arial, which is a sans-serif font
@@ -77,16 +79,13 @@ winter_adjustment.plot(label='Winter', lw=2)
 autumn_adjustment.plot(label='Autumn', lw=2)
 smoothed_total_energy_consumption.plot(label='Summer', lw=2)
 spring_adjustment.plot(label='Spring', lw=2)
+plt.xticks([])
 
 # Labeling the axes with a larger font for clarity
-plt.xlabel('Time', fontsize=12)
-plt.ylabel('Total Energy Consumption', fontsize=12)
-# Setting the title with a larger font size and bold font weight
-plt.title('Energy Consumption Per Season', fontsize=14, fontweight='bold')
-# Setting a grid for better readability
-plt.grid(True, which='both', linestyle='--', linewidth=0.5)
-# Adding a legend with a smaller font size to not overpower the graph
-plt.legend(fontsize=10)
+plt.xlabel('Time (H)', fontsize=12)
+plt.ylabel('Total Power Consumption (kW)', fontsize=12)
+plt.legend(fontsize=12)
+plt.tight_layout()
 # Save the plot as a high-resolution PNG file
 plt.savefig('IEEE_formatted_plot.png', format='png')
 plt.show()

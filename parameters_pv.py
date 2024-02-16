@@ -18,8 +18,18 @@ parameters = {
     'R_sh_ref': 393.2054,
     'Adjust': 8.7,
     'gamma_r': -0.476,
+    'series_cell': 5,
+    'parallel_cell': 3,
     'Version': 'MM106',
     'PTC': 200.1,
     'Technology': 'Mono-c-Si',
 }
 
+
+LLE_parameters = {
+    'Name': 'SunPower SPR-305E-WHT-D',
+    'PCE_min':10,
+    'PCE_max':20,
+    'slope':(-1/100),
+    'PCE_ref':20,
+}
