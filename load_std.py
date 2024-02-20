@@ -68,8 +68,8 @@ autumn_adjustment = smoothed_total_energy_consumption * 1.20
 winter_adjustment = smoothed_total_energy_consumption * 1.35
 spring_adjustment = smoothed_total_energy_consumption * 1.15
 
-seasons = pd.DataFrame({'summer': average_profile, 'spring': spring_adjustment, 'autumn': autumn_adjustment, 'winter': winter_adjustment})
-seasons.to_csv('seasons_load.csv')
+seasons = pd.DataFrame({'winter': winter_adjustment, 'spring': spring_adjustment, 'autumn': autumn_adjustment, 'summer': average_profile})
+seasons.to_csv('load_seasons.csv')
 # Set the figure size and resolution
 plt.figure(figsize=(8, 4), dpi=300)
 # Set the plot font to Arial, which is a sans-serif font

@@ -1,131 +1,131 @@
-import matplotlib.pyplot as plt
+from pvlib import pvsystem
 import numpy as np
 import pandas as pd
-import glob
+import matplotlib.pyplot as plt
+from parameters_pv import parameters, LLE_parameters
 
-date_period = '2022-01-01/2023-01-01'
+# Constants
+C_bat = 10000  # Battery capacity in kWh, for example
+n_c = 0.95  # Charging efficiency
+n_d = 0.95  # Discharging efficiency
+P_max_c = 5000  # Charging power max
+P_max_d = 5000  # Discharging power max
+delta_t = 1  # Time step in hours
+SoC_max = 100  # 100%
+SoC_min = 0  # 0%
 
-self_consumption_file = 'data/plots/self_consumption_july.png'
-battery_capacity = 10000
-SoC_battery = 40
+irradiance = pd.read_csv('data/irradiance_seasons.csv')
+temperature = pd.read_csv('data/temperature_seasons.csv')
+P_load = pd.read_csv('data/load_seasons.csv') * 1000
 
-file_path = glob.glob('data/network_data/network/load_profiles/*.csv')
-year_combined_load_profile = pd.concat((pd.read_csv(f, sep=',') for f in file_path), ignore_index=True)
-year_combined_load_profile = pd.DataFrame(year_combined_load_profile)
-year_combined_load_profile['mult'] = year_combined_load_profile['mult']*1000
-
-def plot_graph(df, label, file_name):
-    for i in range(len(df)):
-        plt.plot(df[i], label=label[i])
-    plt.legend()
-    plt.savefig(f'data/plots/{file_name}.png')
-    plt.show()
-
-with open('data/network_data/network/Load_profile_1.csv', newline='') as loadprofile_file, open('data/pv_generation_data/pv_profiles/profile_year.csv', newline='') as pvprofile_file:
-    pv_profile = pd.read_csv(pvprofile_file)
-    range_days = date_period.split('/')
-    mask = (pv_profile['index_date'] >= range_days[0]) & (pv_profile['index_date'] <= range_days[1])
-    pv_profile = pv_profile[mask]
+def PV_power_generation(irradiance, temperature, parameters, LLE_parameters):
+    # Preallocate the output array
+    IL, I0, Rs, Rsh, nNsVth = pvsystem.calcparams_desoto(
+        effective_irradiance=irradiance,
+        temp_cell=temperature,
+        alpha_sc=parameters['alpha_sc'],
+        a_ref=parameters['a_ref'],
+        I_L_ref=parameters['I_L_ref'],
+        I_o_ref=parameters['I_o_ref'],
+        R_sh_ref=parameters['R_sh_ref'],
+        R_s=parameters['R_s'],
+        EgRef=1.121,
+        dEgdT=-0.0002677
+    )
     
-    load_profile = pd.read_csv(loadprofile_file)
-    load_profile['mult'] = load_profile['mult']*1000
-
-#repeat_factor = len(pv_profile)/len(year_combined_load_profile)+1
-repeat_factor = 12
-year_combined_load_profile =  pd.concat([year_combined_load_profile] * repeat_factor, ignore_index=True)
-
-
-#CFPV 
-grid_consumption_cfpv = pd.DataFrame(np.zeros(525599), columns=['consumption'])
-battery_energy_cfpv = pd.DataFrame(np.zeros(525599), columns=['energy'])
-curtailment_cfpv = pd.DataFrame(np.zeros(525599), columns=['curtailment'])
-battery_energy_cfpv['energy'][0] = battery_capacity*(SoC_battery/100)
-
-#for i, _ in year_combined_load_profile.iterrows():
-for i in range(525599):
-    cfpv_generated = pv_profile['P_CFPV'][i]/60
-    consumption = year_combined_load_profile['mult'].iloc[i]/60
+    curve_info = pvsystem.singlediode(
+        photocurrent=IL,
+        saturation_current=I0,
+        resistance_series=Rs,
+        resistance_shunt=Rsh,
+        nNsVth=nNsVth,
+        ivcurve_pnts=100,
+        method='lambertw'
+    )
     
-    if consumption > cfpv_generated:
-        energy_demand_battery = (consumption - cfpv_generated)
+    # Calculate the module power
+    P_mp = curve_info['i_mp'] * curve_info['v_mp']
+    
+    # Calculate P_SI
+    PV_data = pd.DataFrame()
+    PV_data['P_Si'] = P_mp * parameters['series_cell'] * parameters['parallel_cell']
 
-        if battery_energy_cfpv['energy'][i] > energy_demand_battery:
-            battery_energy_cfpv['energy'][i+1] = battery_energy_cfpv['energy'][i] - energy_demand_battery
+    # Adding irradiance and temperature as columns
+    PV_data['irradiance'], PV_data['temperature'] = irradiance, temperature
 
-        else:
-            grid_consumption_cfpv['consumption'][i] = energy_demand_battery - battery_energy_cfpv['energy'][i]
-            battery_energy_cfpv['energy'][i+1] = 0
+    # Calculating delta, phi, beta values for P_LLE
+    PV_data['phi'] = ((-1/100) * irradiance) + LLE_parameters['PCE_ref']
+    PV_data['beta'] = 1
+    PV_data['delta'] = (PV_data['phi'] * PV_data['beta'])/ LLE_parameters['PCE_min']
+    PV_data['P_LLE'] = PV_data['P_Si'] * PV_data['delta']
 
+    return PV_data
+
+# Calculate power output for Si and LLE
+PV_data = PV_power_generation(irradiance['GHI'], temperature['t2m'], parameters, LLE_parameters)
+
+# # Sample data - replace with actual CSV data
+# P_load = pd.read_csv('data/load_seasons.csv')
+P_PV = PV_data['P_Si']
+
+seasonal_loads = [P_load['winter'], P_load['spring'], P_load['summer'], P_load['autumn']]
+P_load = pd.concat(seasonal_loads).reset_index(drop=True)
+
+# Initialize variables
+SoC = pd.Series(np.zeros(len(P_load)))  # State of Charge
+P_bat = pd.Series(np.zeros(len(P_load)))  # Battery power
+
+for t in range(1, len(P_load)):
+    P_available = ((SoC_min - SoC.iloc[t-1]/100)) * C_bat * n_d * 1 # Power available
+    P_required = (((SoC_max - SoC.iloc[t-1])/100) * C_bat) / n_c # Power required
+    
+    if P_load.iloc[t] > P_PV.iloc[t]:
+        P_bat[t] = max(P_PV.iloc[t] - P_load.iloc[t], P_available, -P_max_d)
+    elif P_load.iloc[t] < P_PV.iloc[t]:
+        P_bat[t] = min(P_PV.iloc[t] - P_load.iloc[t], P_required, P_max_c)
     else:
-        if battery_energy_cfpv['energy'][i] < battery_capacity:
-            battery_energy_cfpv['energy'][i+1] = battery_energy_cfpv['energy'][i] + (cfpv_generated-consumption)
-        if battery_energy_cfpv['energy'][i] >= battery_capacity:
-            curtailment_cfpv['curtailment'][i] = battery_energy_cfpv['energy'][i] - battery_capacity 
-            battery_energy_cfpv['energy'][i+1] = battery_capacity
+        P_bat[t] = 0
     
-#Silicon 
-battery_energy_p = pd.DataFrame(np.zeros(525599), columns=['energy'])
-grid_consumption_p = pd.DataFrame(np.zeros(525599), columns=['consumption'])
-curtailment_p = pd.DataFrame(np.zeros(525599), columns=['curtailment'])
-battery_energy_p['energy'][0] = battery_capacity*(SoC_battery/100)
-
-#for i, _ in year_combined_load_profile.iterrows():
-for i in range(525599):
-    p_generated = pv_profile['P'][i]/60
-    consumption = year_combined_load_profile['mult'][i]/60
-    if consumption > p_generated:
-        energy_demand_battery = (consumption - p_generated)
-
-        if battery_energy_p['energy'][i] >= energy_demand_battery:
-            battery_energy_p['energy'][i+1] = battery_energy_p['energy'][i] - energy_demand_battery
-
-        else:
-            grid_consumption_p['consumption'][i] = energy_demand_battery - battery_energy_p['energy'][i]
-            battery_energy_p['energy'][i+1] = 0
-
+    Z_bat = 1 if P_bat.iloc[t] > 0 else 0
+    if Z_bat == 1 :
+        SoC[t] = (SoC.iloc[t-1] + (n_c * P_bat.iloc[t] * delta_t)) / C_bat * 100
     else:
-        if battery_energy_p['energy'][i] < battery_capacity:
-            battery_energy_p['energy'][i+1] = battery_energy_p['energy'][i] + (p_generated-consumption)
-        if battery_energy_p['energy'][i] >= battery_capacity:
-            curtailment_p['curtailment'][i] = battery_energy_p['energy'][i] - battery_capacity 
-            battery_energy_p['energy'][i+1] = battery_capacity
+        SoC[t] = SoC.iloc[t-1] + (P_bat.iloc[t] * delta_t/n_d )/ C_bat * 100
+# Calculate P_h^t
+P_h = P_load - P_PV - P_bat  # Assuming first column has the data
 
-plot_graph([year_combined_load_profile['mult']], ['Load'], 'combined_load')
-plot_graph([curtailment_cfpv['curtailment'],curtailment_p['curtailment']], ['CFPV curtailment','Si-PV Curtailment'], 'curtailment_year')
-plot_graph([pv_profile['P'], pv_profile['P_CFPV']], ['Si-PV','CFPV'], 'PV_generation_year')
-plot_graph([battery_energy_p/100, battery_energy_cfpv/100], ['SoC Si-PV_battery', 'SoC CFPV_battery'], 'state_of_charge_year')
-plot_graph([year_combined_load_profile['mult'], grid_consumption_p*60, grid_consumption_cfpv*60], ['Load', 'Si-PV grid_consumption', 'CFPV grid_consumption'], 'grid_energy_consumption_year')
+# Output results
+results = pd.DataFrame({
+    'P_load': P_load,
+    'P_PV': P_PV,
+    'P_bat': P_bat,
+    'SoC': SoC,
+    'P_h': P_h
+})
 
-total_cfpv = grid_consumption_cfpv.sum()[0]
-total_p = grid_consumption_p.sum()[0]
-plt.bar(['CFPV grid energy consumption', 'Si-PV grid energy consumption'], [total_cfpv, total_p], color=['green', 'red'])
-plt.show()
 
-sizes_cfpv = [grid_consumption_cfpv.sum()[0]/(year_combined_load_profile['mult'].sum()/60) * 100, ((year_combined_load_profile['mult'].sum()/60) - grid_consumption_cfpv.sum()[0])/ (year_combined_load_profile['mult'].sum()/60) *100]
-labels_cfpv = ['Grid consumption','CFPV consumption']
-sizes_p= [grid_consumption_p.sum()[0]/(year_combined_load_profile['mult'].sum()/60) * 100, ((year_combined_load_profile['mult'].sum()/60) - grid_consumption_p.sum()[0])/ (year_combined_load_profile['mult'].sum()/60) *100]
-labels_p = ['Grid consumption','Si-PV consumption']
+print(results)
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
-ax1.pie(sizes_cfpv, labels=labels_cfpv, autopct='%1.1f%%', startangle=90)
-ax1.axis('equal')
-ax1.set_title('CFPV generation and grid consumption')
-ax2.pie(sizes_p, labels=labels_p, autopct='%1.1f%%', startangle=90)
-ax2.axis('equal')
-ax2.set_title('Si-PV generation and grid consumption')
+# Set the figure size and resolution
+plt.figure(figsize=(8, 4), dpi=300)
+# Set the plot font to Arial, which is a sans-serif font
+plt.rc('font', family='Arial')
+# Plotting the seasonal adjustments
+results['P_load'].plot(label='P_load', lw=2)
+results['P_h'].plot(label='P_h', lw=2)
+# results['SoC'].plot(label='SoC', lw=2)
+results['P_PV'].plot(label='P_PV', lw=2)
+# Labeling the axes with a larger font for clarity
+plt.xlabel('Time (H)', fontsize=12)
+plt.ylabel('Total Power Consumption (kW)', fontsize=12)
+plt.legend(fontsize=12)
 plt.tight_layout()
-plt.savefig('data/plots/pie_charts_year.png')
+# Save the plot as a high-resolution PNG file
+# plt.savefig('IEEE_formatted_plot.png', format='png')
 plt.show()
 
-#date_range = pd.date_range(start='2022-01-01', end='2023-01-01', freq='T')
-#date_range = date_range.drop(date_range[-2])
-#x['time'] = date_range
-#x['time'] = pd.to_datetime(x['time'])
-#x.set_index('time', inplace=True)
-#plt.plot(x.groupby(x.index.strftime('%H:%M')).mean())
-
-
-#plt.plot(range(1,54), pv_profile['P'].groupby(pv_profile.index.strftime('%Y-%U')).max(), label='Si-PV_max', color='red', linestyle='--')
-
-#plt.bar(range(1,54), grid_consumption_cfpv['consumption'].groupby(grid_consumption_cfpv.index.strftime('%Y-%U')).sum()*60, width=0.35, label='CFPV grid consumption', color='blue', alpha=0.5)
-#plt.bar([week + 0.35 for week in range(1,54)], grid_consumption_p['consumption'].groupby(grid_consumption_p.index.strftime('%Y-%U')).sum()*60, width=0.35, label='Si-PV grid consumption', color='red', alpha=0.5)
+# results['P_load'].plot(label='P_load', lw=2)
+results['SoC'].plot(label='SoC', lw=2)
+plt.show()
+results['P_bat'].plot(label='SoC', lw=2)
+plt.show()

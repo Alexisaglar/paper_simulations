@@ -73,5 +73,7 @@ def plot_seasonal_profiles(avg_irradiance, avg_temperature, seasons):
 # Define the seasons to plot
 seasons = ['winter', 'spring', 'summer', 'autumn']
 
+avg_irradiance.to_csv('irradiance_seasons.csv')
+avg_temperature.to_csv('temperature_seasons.csv')
 # Call the plotting function
 plot_seasonal_profiles(avg_irradiance, avg_temperature, seasons)
