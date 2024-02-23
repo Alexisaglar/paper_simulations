@@ -35,11 +35,17 @@ temperature['season'] = temperature.index.month.map(assign_season)
 irradiance['time'] = irradiance.index.strftime('%H:%M')
 temperature['time'] = temperature.index.strftime('%H:%M')
 
+seasons = ['winter', 'spring', 'summer', 'autumn']
+irradiance['season'] = pd.Categorical(irradiance['season'], categories=seasons, ordered=True)
+temperature['season'] = pd.Categorical(temperature['season'], categories=seasons, ordered=True)
+
 def compute_seasonal_time_averages(df):
     return df.groupby(['season', 'time']).mean()
 
 avg_irradiance = compute_seasonal_time_averages(irradiance)
 avg_temperature = compute_seasonal_time_averages(temperature)
+
+# Order df by season
 
 # Define the plotting function
 def plot_seasonal_profiles(avg_irradiance, avg_temperature, seasons):
@@ -69,9 +75,6 @@ def plot_seasonal_profiles(avg_irradiance, avg_temperature, seasons):
     plt.tight_layout()
     axs[-1].set_xlabel('Time of Day')
     plt.show()
-
-# Define the seasons to plot
-seasons = ['winter', 'spring', 'summer', 'autumn']
 
 avg_irradiance.to_csv('irradiance_seasons.csv')
 avg_temperature.to_csv('temperature_seasons.csv')

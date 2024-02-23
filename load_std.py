@@ -60,15 +60,15 @@ average_profile = normalized_df.mean(axis=1)
 
 # Step 4: Apply a rolling mean to smooth the data
 rolling_window = 60 # for example, a 10 minute rolling window
-smoothed_total_energy_consumption = average_profile.rolling(window=rolling_window).mean()
 smoothed_total_energy_consumption = average_profile.rolling(window=rolling_window, min_periods=1).mean()
 
 # Step 5: Calculate the seasonal adjustments
 autumn_adjustment = smoothed_total_energy_consumption * 1.20
 winter_adjustment = smoothed_total_energy_consumption * 1.35
 spring_adjustment = smoothed_total_energy_consumption * 1.15
+summer_adjustment = smoothed_total_energy_consumption * 1
 
-seasons = pd.DataFrame({'winter': winter_adjustment, 'spring': spring_adjustment, 'autumn': autumn_adjustment, 'summer': average_profile})
+seasons = pd.DataFrame({'winter': winter_adjustment, 'spring': spring_adjustment, 'summer': summer_adjustment, 'autumn': autumn_adjustment})
 seasons.to_csv('load_seasons.csv')
 # Set the figure size and resolution
 plt.figure(figsize=(8, 4), dpi=300)
