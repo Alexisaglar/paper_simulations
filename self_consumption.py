@@ -4,12 +4,20 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from parameters_pv import parameters, LLE_parameters
 
+colors = {
+    'P_load': 'slategray',
+    'P_G2H': 'forestgreen',  # Green for generation from Grid to Hydrogen
+    'P_PV': 'gold',          # Yellowish for solar PV generation
+    'P_H2G': 'royalblue',    # Blue for Hydrogen to Grid
+    'P_bat': 'mediumpurple'  # Purple for battery storage
+}
+
 # Constants
 C_bat = 5000  # Battery capacity in kWh, for example
 n_c = 0.95  # Charging efficiency
 n_d = 0.95  # Discharging efficiency
-P_max_c = 5000  # Charging power max
-P_max_d = 5000  # Discharging power max
+P_max_c = 2500  # Charging power max
+P_max_d = 2500  # Discharging power max
 delta_t = 60  # Time step in hours
 SoC_max = 100  # 100%
 SoC_min = 0  # 0%
@@ -77,8 +85,11 @@ P_bat = pd.Series(np.zeros(len(P_load)))  # Battery power
 
 
 for t in range(1, len(P_load)):
-    P_available = (((SoC_min - SoC.iloc[t-1]/100)) * C_bat * n_d) / delta_t # Power available
-    P_required = ((((SoC_max - SoC.iloc[t-1])/100) * C_bat) / (n_c * delta_t))  # Power required
+    P_available = ((SoC_min - SoC.iloc[t-1]/100)) * (C_bat * delta_t) * n_d# Power available
+    P_required = ((((SoC_max - SoC.iloc[t-1])/100) * (C_bat * delta_t)) / (n_c))  # Power required
+    
+    if t == 1440 or t == 2880 or t == 4320 or t == 0: 
+        SoC[t-1] = 0 
     
     if P_load.iloc[t] > P_PV.iloc[t]:
         P_bat[t] = max(P_PV.iloc[t] - P_load.iloc[t], P_available, -P_max_d)
@@ -93,8 +104,8 @@ for t in range(1, len(P_load)):
     else:
         SoC[t] = SoC.iloc[t-1] + (((P_bat.iloc[t] / delta_t * n_d ) / C_bat )* 100) 
         
-# Calculate P_h^t , P_H2G, PH2G
-P_h = P_load - P_PV - P_bat  # Assuming first column has the data
+# Calculate P_h^t , P_H2G, P_G2H
+P_h = P_load - P_PV - P_bat  
 
 
 
@@ -104,9 +115,9 @@ P_G2H = pd.Series(np.zeros(len(P_h)))  # Battery power
 
 for i in range(len(P_h)):
     if P_h[i] > 0:
-        P_G2H[i] = P_h[i]
+        P_G2H[i] = P_h[i] + P_bat[i]
     else:
-        P_H2G[i] = P_h[i]
+        P_H2G[i] = P_h[i] + P_bat[i]
 
 # Output results
 results = pd.DataFrame({
@@ -119,54 +130,33 @@ results = pd.DataFrame({
     'P_G2H': P_G2H,
 })
 
-
 print(results)
 
-# Set the figure size and resolution
-plt.figure(figsize=(8, 4), dpi=300)
-# Set the plot font to Arial, which is a sans-serif font
-plt.rc('font', family='Arial')
-# Plotting the seasonal adjustments
-results['P_load'].plot(label='P_load', lw=2)
-results['P_h'].plot(label='P_h', lw=2)
-# results['SoC'].plot(label='SoC', lw=2)
-results['P_PV'].plot(label='P_PV', lw=2)
-results['P_bat'].plot(label='P_bat', lw=2)
-# Labeling the axes with a larger font for clarity
-plt.xlabel('Time (H)', fontsize=12)
-plt.ylabel('Total Power Consumption (kW)', fontsize=12)
-plt.legend(fontsize=12)
+# Improved color scheme
+colors = {
+    'P_load': '#4e79a7',  # Blue for load
+    'P_G2H': '#59a14f',   # Green for generation from Grid to Hydrogen
+    'P_PV': '#f28e2b',    # Orange for solar PV generation
+    'P_H2G': '#76b7b2',   # Cyan for Hydrogen to Grid
+    'P_bat': '#edc948'    # Yellow for battery storage
+}
+
+# Improved plot aesthetics
+plt.figure(figsize=(10, 6))
+# plt.stackplot(results.index, results['P_G2H'], abs(results['P_bat']), (results['P_load']-results['P_G2H']), labels=['P_G2H', 'P_H2G', 'P_PV'], colors=colors.values(), alpha=0.8)
+plt.stackplot(results.index, results['P_G2H'], results['P_PV'] + results['P_H2G'], abs(results['P_H2G']), labels=['P_G2H', 'P_PV', 'P_H2G'], colors=colors.values(), alpha=0.8)
+plt.plot(results.index, results['P_load'], label='P_load', color='black')
+plt.plot(results.index, results['P_PV'], label='P_PV', color='red')
+plt.title('Power Distribution Over Time', fontsize=16)
+plt.xlabel('Time (h)', fontsize=12)
+plt.ylabel('Power (kW)', fontsize=12)
+plt.legend(loc='upper left')
+plt.grid(True)
 plt.tight_layout()
-# Save the plot as a high-resolution PNG file
-plt.savefig('Power_profiles.png', format='png')
-plt.show()
 
-# results['P_load'].plot(label='P_load', lw=2)
-results['P_G2H'].plot(label='P_G2H', lw=2)
-results['P_H2G'].plot(label='P_H2G', lw=2)
-results['P_bat'].plot(label='P_bat', lw=2)
-results['P_load'].plot(label='P_load', lw=2)
-results['P_PV'].plot(label='P_PV', lw=2)
-plt.legend(fontsize=12)
-plt.tight_layout()
-plt.show()
+# Save the figure with high quality
+plt.savefig('power_distribution.png', dpi=300)
 
-# Plot
-fig, ax = plt.subplots(figsize=(12, 6))
-# Plot P_load as the main line
-ax.plot(results.index, results['P_load'], label='P_load', color='black')
-# P_PV contribution
-ax.fill_between(results.index, 0, results['P_PV'], label='P_PV', step='pre', color='orange', alpha=0.5)
-# Ensure P_G2H is only shown where needed (P_PV < P_load)
-ax.fill_between(results.index, results['P_load'], results['P_PV'], results['P_G2H'], label='P_G2H (to Load)', color='green', alpha=0.5)
-# ax.fill_between(results.index, results['P_load'], results['P_bat'], results['P_H2G'], label='P_G2H (to Load)', color='green', alpha=0.5)
-ax.plot(results.index, abs(results['P_H2G']), label='Surplus (P_H2G)', color='blue', linestyle='--')
-ax.plot(results.index, results['SoC'], label='SoC', color='red', linestyle='--')
-
-ax.legend()
-plt.xlabel('Time')
-plt.ylabel('Power (kW)')
-plt.title('Power Distribution Over Time')
 plt.show()
 
 print(results)
