@@ -137,12 +137,8 @@ colors = {
     
 # Plot figure
 plt.figure(figsize=(12, 6))
-
 # Increase the overall font sizes for readability
 plt.rcParams.update({'font.size': 20})  # Adjust as needed for IEEE guidelines
-
-# Plot your data here as you have in your original code...
-
 plt.stackplot(results.index, 
             (results['P_load'] - results['P_G2H'])/1000,
             results['P_G2H']/1000, 
