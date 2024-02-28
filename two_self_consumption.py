@@ -26,9 +26,7 @@ winter_end, spring_end, summer_end, autumn_end = 1439, 2879, 4319, 5759
 seasonal_loads = [P_load['winter'], P_load['spring'], P_load['summer'], P_load['autumn']]
 P_load = pd.concat(seasonal_loads).reset_index(drop=True)
 
-# Initialize variables
-SoC = pd.Series(np.zeros(len(P_load)))  # State of Charge
-P_bat = pd.Series(np.zeros(len(P_load)))  # Battery power
+
 
 # color scheme
 colors = {
@@ -83,6 +81,9 @@ def PV_power_generation(irradiance, temperature, parameters, LLE_parameters):
     return PV_data
 
 def calculate_self_consumption(P_PV):
+    # Initialize variables
+    SoC = pd.Series(np.zeros(len(P_load)))  # State of Charge
+    P_bat = pd.Series(np.zeros(len(P_load)))  # Battery power
     for t in range(1, len(P_load)):
         P_available = ((SoC_min - SoC.iloc[t-1]/100)) * (C_bat * delta_t) * n_d# Power available
         P_required = ((((SoC_max - SoC.iloc[t-1])/100) * (C_bat * delta_t)) / (n_c))  # Power required
@@ -268,15 +269,23 @@ delta_values = [1.0, 1.2, 1.4, 1.6, 1.8, 2.0]  # The scaling parameter values
 plt.figure(figsize=(10, 6))
 plt.stackplot(delta_values, Total_E_G2H/E_load, np.abs(Total_E_discharge)/E_load, Total_E_PV/E_load,
               labels=['E_G2H', 'E_discharge', 'E_PV'],
-              colors=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'])
-plt.plot([1,2], 
-            [1,1], 
-            label='Load', color='black')
+              colors=['#40679E', '#527853', '#FD841F'])
+plt.plot([1,2], [1,1], label='Load', color='black')
 
-plt.fill_between(delta_values, [1,1,1,1,1,1], Total_E_charge/E_load, color='orange', hatch='/', alpha =0.5, label='E_charge' )
-# plt.plot(delta_values, Total_E_charge / E_load, label='Battery charging', color='red')
-plt.legend(loc='upper left')
-plt.title('Energy %')
-plt.xlabel('Delta')
-plt.ylabel('Energy Dispatched (kWh)')
+plt.fill_between(delta_values, [1,1,1,1,1,1], Total_E_charge/E_load, color='#AFC8AD', hatch='O', alpha =0.5, label='E_charge' )
+ax = plt.gca()  # Get the current Axes instance
+plt.xlim(1, 2)
+plt.ylim([0, 2.1])  # for example, to set the y-limit to 20% above max PV power
+for _, spine in ax.spines.items():
+    spine.set_linewidth(1.5)
+
+# Increase the line width of the tick marks for visibility
+ax.tick_params(which='both', width=2)  # Applies to both major and minor ticks
+ax.tick_params(which='major', length=7)  # Only major ticks
+ax.tick_params(which='minor', length=4, color='gray')  # Only minor ticks
+
+# Add labels and title with a larger font size
+plt.xlabel('δ_material', fontsize=20)
+plt.ylabel('Energy % to Load', fontsize=20)
+plt.legend(fontsize='20', frameon=True, handlelength=0.5, labelspacing=0.1, handletextpad=0.3, borderpad=0.1, loc='upper left')  # Adjust the location and size as needed
 plt.show()
