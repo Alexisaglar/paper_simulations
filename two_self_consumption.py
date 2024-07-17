@@ -261,7 +261,7 @@ PV_3d=np.array(E_PV_Si), E_PV[0], E_PV[1], E_PV[2], E_PV[3], np.array(E_PV_LLE)
 G2H_3d=[np.array(E_G2H_Si), E_G2H[0], E_G2H[1], E_G2H[2], E_G2H[3], np.array(E_G2H_LLE)]
 discharge_3d=[abs(np.array(E_discharge_Si)), abs(E_discharge[0]), abs(E_PV[1]), abs(E_PV[2]), abs(E_PV[3]), abs(np.array(E_PV_LLE))]
 # G2H_[np.array(E_PV_Si), E_PV[0], E_PV[1], E_PV[2], E_PV[3], np.array(E_PV_LLE)]
-Total_E_PV, Total_E_G2H, Total_E_H2G, Total_E_charge, Total_E_discharge = data_per_season(E_PV, E_G2H, E_H2G, E_charge, E_discharge, winter_start, autumn_end)
+Total_E_PV, Total_E_G2H, Total_E_H2G, Total_E_charge, Total_E_discharge = data_per_season(E_PV, E_G2H, E_H2G, E_charge, E_discharge, winter_start, winter_end)
 
 
 # Plot
@@ -288,4 +288,71 @@ ax.tick_params(which='minor', length=4, color='gray')  # Only minor ticks
 plt.xlabel('δ_material', fontsize=20)
 plt.ylabel('Energy % to Load', fontsize=20)
 plt.legend(fontsize='20', frameon=True, handlelength=0.5, labelspacing=0.1, handletextpad=0.3, borderpad=0.1, loc='upper left')  # Adjust the location and size as needed
+plt.show()
+
+
+# Splitting the data by season
+seasons = ['Winter', 'Spring', 'Summer', 'Autumn']
+split_indices = [1440, 2880, 4320, 5760]
+soc_si_seasons = np.split(SoC_Si, split_indices[:-1])  # Exclude the last index to match the number of seasons
+soc_lle_seasons = np.split(SoC_LLE, split_indices[:-1])
+
+# Preparing data for plotting
+data_to_plot_si = [season_data for season_data in soc_si_seasons]
+data_to_plot_lle = [season_data for season_data in soc_lle_seasons]
+data_to_plot = [val for pair in zip(data_to_plot_si, data_to_plot_lle) for val in pair]  # Interleave Si and LLE data
+labels = [f'{tech}\n{season}' for season in seasons for tech in ['Si', 'LLE']]
+
+
+# Define colors for the boxplots
+colors = ['blue', 'green']  # Grayscale colors for a professional look
+
+# Define the properties for the boxplot elements
+boxprops = dict(linestyle='-', linewidth=1, color='black')
+whiskerprops = dict(linestyle='-', linewidth=1, color='black')
+capprops = dict(linestyle='-', linewidth=1, color='black')
+medianprops = dict(linestyle='-', linewidth=1, color='black')
+flierprops = dict(marker='o', color='black', markersize=3)
+
+# Define the figure and axis
+fig, ax = plt.subplots(figsize=(12, 6))
+
+# Calculate positions to add space between seasons
+n_groups = len(seasons)  # Number of seasons
+n_boxes_per_group = 2    # Number of box plots per group (Si and LLE)
+spacing = 1              # Space between groups
+positions = [i + (i // n_boxes_per_group) * spacing for i in range(n_groups * n_boxes_per_group)]
+
+# Creating the boxplot with the properties and custom positions
+bplot = ax.boxplot(data_to_plot, patch_artist=True, labels=labels, notch=True,
+                   positions=positions,  # Use the custom positions
+                   boxprops=boxprops, whiskerprops=whiskerprops,
+                   capprops=capprops, medianprops=medianprops, flierprops=flierprops)
+
+# Coloring the boxes
+for patch, color in zip(bplot['boxes'], colors * (len(data_to_plot) // len(colors))):
+    patch.set_facecolor(color)
+
+# Set font size and family for the plot
+plt.rcParams.update({'font.size': 20, 'font.family': 'Arial'})
+
+# Setting axis labels and title
+ax.set_ylabel('SoC (%)')
+ax.set_xticklabels(labels, rotation=0)
+
+# Adjusting the y-axis limits
+ax.set_ylim(0, 100)
+ax = plt.gca()  # Get the current Axes instance
+# plt.xlim(1, 2)
+plt.ylim([0, 100])  # for example, to set the y-limit to 20% above max PV power
+for _, spine in ax.spines.items():
+    spine.set_linewidth(1.5)
+
+# Increase the line width of the tick marks for visibility
+ax.tick_params(which='both', width=2)  # Applies to both major and minor ticks
+ax.tick_params(which='major', length=7)  # Only major ticks
+ax.tick_params(which='minor', length=4, color='gray')  # Only minor ticks
+
+# Add labels and title with a larger font size
+plt.xlabel('Season', fontsize=20)
 plt.show()
