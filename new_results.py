@@ -72,7 +72,6 @@ power_lle = calculate_lle_power(irradiance_grid, temperature_grid)
 # Calculate the performance gain (the difference in power)
 delta_p = power_lle - power_si
 
-
 # --- 4. Generate the Contour Plot ---
 fig, ax = plt.subplots(figsize=(10, 8))
 
