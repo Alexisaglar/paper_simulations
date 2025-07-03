@@ -147,8 +147,8 @@ PV_PARAMETERS = {
     'parallel_cell': 3,
     'sd_t_c': -0.4,  # %/ºC
     'epv_t_c': -0.25,  # %/ºC
-    'pce_@0sun_epv': 20,
-    'pce_@1sun_epv': 40,
-    'pce_@1sun_sd': 20,
+    'pce_@0sun_epv': 40,
+    'pce_@1sun_epv': 20,
     'pce_@0sun_sd': 20,
+    'pce_@1sun_sd': 20,
 }

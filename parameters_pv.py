@@ -28,8 +28,8 @@ parameters = {
 
 LLE_parameters = {
     'Name': 'SunPower SPR-305E-WHT-D',
-    'PCE_min':10,
-    'PCE_max':20,
+    'PCE_min':20,
+    'PCE_max':40,
     'slope':(-1/100),
     'PCE_ref':20,
 }
