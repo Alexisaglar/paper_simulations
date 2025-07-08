@@ -380,8 +380,8 @@ if __name__ == "__main__":
     # Splitting the data by season
     seasons = ['Winter', 'Spring', 'Summer', 'Autumn']
     split_indices = [1440, 2880, 4320, 5760]
-    soc_si_seasons = np.split(SoC_Si, split_indices[:-1])  # Exclude the last index to match the number of seasons
-    soc_lle_seasons = np.split(SoC_LLE, split_indices[:-1])
+    soc_si_seasons = np.split(self_consumption_si['SoC'], split_indices[:-1])  # Exclude the last index to match the number of seasons
+    soc_lle_seasons = np.split(self_consumption_epv['SoC'], split_indices[:-1])
 
     # Preparing data for plotting
     data_to_plot_si = [season_data for season_data in soc_si_seasons]
