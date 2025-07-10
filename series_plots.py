@@ -175,6 +175,14 @@ def stack_plot(
                 labels=['PV to Load','Grid to Home', 'Home to Grid', 'Battery Charging', 'Battery Discharging'], 
                 colors=colors.values(),
                 alpha=0.8)
+    plt.rcParams.update({
+        'font.size': 18,
+        'axes.labelsize': 20,
+        'axes.titlesize': 24,
+        'xtick.labelsize': 16,
+        'ytick.labelsize': 16,
+        'legend.fontsize': 18,
+    })
 
     plt.plot(range(len(power_load)), power_load/1000, label='Load Power', color='black')
     plt.plot(P_PV.index, P_PV/1000, label='PV Power', color='#FD841F')
@@ -209,7 +217,8 @@ def stack_plot(
     plt.xlabel('Time (t)', fontsize=20)
     plt.ylabel('Power (kW)', fontsize=20)
     plt.legend(fontsize='20', frameon=True, handlelength=0.5, labelspacing=0.2, handletextpad=0.3, borderpad=0.2, loc='upper left')
-    plt.show()
+    plt.savefig(f'chapter_3_images/{name}_timeseries.png', format='png', dpi=300, bbox_inches='tight')
+    # plt.show()
 
 def calculate_total_energy(power_load, P_PV, self_consumption):
     total_energy = pd.DataFrame({
@@ -286,7 +295,8 @@ def plot_seasonal_stack(
     season_name: str, 
     seasonal_data: np.array, 
     delta_values: np.array, 
-    energy_load: float
+    energy_load: float,
+    name: str,
 ) -> None:
     # 0:E_PV, 1:E_G2H, 2:E_H2G, 3:E_discharge, 4:E_charge
     e_pv_data = seasonal_data[season_index, :, 0]
@@ -301,7 +311,7 @@ def plot_seasonal_stack(
     e_discharge_perc = (np.abs(e_discharge_data) / energy_load) * 100
     e_charge_perc = (e_charge_data / energy_load) * 100
 
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(9, 12))
     plt.stackplot(
         delta_values, 
         e_g2h_perc, 
@@ -312,12 +322,22 @@ def plot_seasonal_stack(
         labels=['E_G2H', 'E_discharge', 'E_PV'],
         colors=['#40679E', '#527853', '#FD841F'] # Match colors to data order
     )
+    plt.rcParams.update({
+        'font.size': 18,
+        'axes.labelsize': 20,
+        'axes.titlesize': 24,
+        'xtick.labelsize': 16,
+        'ytick.labelsize': 16,
+        'legend.fontsize': 18,
+        'text.usetex': True,
+        'font.family': "DejaVu Sans"
+    })
 
     # Use axhline for a clean horizontal line across the plot.
     plt.axhline(100, color='black', linestyle='--', label='Load')
     plt.fill_between(delta_values, [100,100,100,100,100,100], (e_charge_perc)+100, color='#AFC8AD', hatch='O', alpha =0.5, label='E_charge' )
     plt.xlim(delta_values.min(), delta_values.max())
-    plt.ylim(0, max(110, plt.ylim()[1])) # Ensure the 100% line is visible
+    plt.ylim(0, max(150, plt.ylim()[1])) # Ensure the 100% line is visible
     # for _, spine in ax.spines.items():
     #     spine.set_linewidth(1.5)
     #
@@ -327,12 +347,13 @@ def plot_seasonal_stack(
     plt.tick_params(which='minor', length=4, color='gray')  # Only minor ticks
 
     # plt.title(f'Energy Contribution for {season_name}')
-    plt.xlabel('Scenario (from SI to EPV)')
-    plt.ylabel('Energy Contribution (% of Load)')
+    plt.xlabel(r'$\delta_\mu $')
+    plt.ylabel(r'Energy to Load (%)')
     plt.legend(loc='upper left')
     plt.grid(True, linestyle='--', alpha=0.6)
+    plt.savefig(f'chapter_3_images/{name}_stackplot.png', format='png', dpi=300, bbox_inches='tight')
 
-    plt.show()
+    # plt.show()
 
 def plot_soc():
     # Splitting the data by season
@@ -429,6 +450,7 @@ if __name__ == "__main__":
             season_name=name,
             seasonal_data=total_per_delta_mu,
             delta_values=DELTA_VALUES,
-            energy_load=energy_load
+            energy_load=energy_load,
+            name=name
         )
-    plot_soc()
+    # plot_soc()
