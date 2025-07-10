@@ -13,7 +13,7 @@ BETA_EPV = 0.025
 TEMP_STC = 25
 IRRADIANCE_STC = 1000
 
-# Constants
+# Constanplot_soc()
 BATTERY_CAPACITY= 5000  # Battery capacity in kWh, for example
 BATTERY_CHARGE_EFF = 0.95  # Charging efficiency
 BATTERY_DISCHARGE_EFF = 0.95  # Discharging efficiency
@@ -110,10 +110,8 @@ def calculate_self_consumption(P_PV: np.array) -> pd.DataFrame:
 
         if power_load[t] > P_PV[t]:
             power_battery[t] = max(P_PV[t] - power_load[t], power_available, -BATTERY_DISCHARGE_POWER_MAX)
-        # elif power_load.iloc[t] < P_PV.iloc[t]:
         else:
             power_battery[t] = min(P_PV[t] - power_load[t], power_required, BATTERY_CHARGE_POWER_MAX)
-            # P_bat[t] = 0
 
         Z_bat = 1 if power_battery[t] > 0 else 0
         if Z_bat == 1 :
@@ -121,7 +119,6 @@ def calculate_self_consumption(P_PV: np.array) -> pd.DataFrame:
         else:
             battery_soc[t] = battery_soc[t-1] + (((power_battery[t] / DELTA_TIME * BATTERY_DISCHARGE_EFF ) / BATTERY_CAPACITY )* 100) 
 
-    # Calculate P_h^t , P_H2G, P_G2H
     power_grid = power_load - P_PV + power_battery  
 
     # Divide P_h in P_H2G and P_G2H
@@ -165,12 +162,10 @@ def stack_plot(
     P_PV: pd.Series,
     name: str
 ) -> None:
+
     # Plot figure
-    plt.plot(power_load)
-    plt.show()
     plt.figure(figsize=(12, 6))
-    # Increase the overall font sizes for readability
-    plt.rcParams.update({'font.size': 20})  # Adjust as needed for IEEE guidelines
+    plt.rcParams.update({'font.size': 20})  
     plt.stackplot(range(len(power_load)), 
                 (power_load - P_G2H)/1000,
                 P_G2H/1000, 
@@ -181,54 +176,39 @@ def stack_plot(
                 colors=colors.values(),
                 alpha=0.8)
 
-    plt.plot(range(len(power_load)), 
-            power_load/1000, label='Load Power', 
-            color='black')
-    plt.plot(P_PV.index, 
-            P_PV/1000, 
-            label='PV Power', color='#FD841F')
+    plt.plot(range(len(power_load)), power_load/1000, label='Load Power', color='black')
+    plt.plot(P_PV.index, P_PV/1000, label='PV Power', color='#FD841F')
 
     ax = plt.gca()  # Get the current Axes instance
     ax.spines['left'].set_position('zero')
     ax.spines['bottom'].set_position('zero')
-    season_centers = [750, 750+1440, (1440*2)+750, (1440*3)+750,]  # Assuming each section is 6 'ticks' wide
+    season_centers = [750, 750+1440, (1440*2)+750, (1440*3)+750,]  
 
-    # Sample season names
     season_names = ['Winter', 'Spring', 'Summer', 'Autumn']
-    # Add text annotations for each season
     for x, season in zip(season_centers, season_names):
-        plt.text(x, 4.15, season, horizontalalignment='center', fontsize=20)  # Adjust `max_power + 200` as needed
+        plt.text(x, 4.15, season, horizontalalignment='center', fontsize=20) 
 
-    season_starts = [0, 1440, 2880, 4320, 5760]
     season_starts = [1440, 2880, 4320]
-    season_midpoints = [720, 2160, 3600, 5040]
-    season_labels = ['Winter', 'Spring', 'Summer', 'Autumn']
-    # Set the limits for a cleaner look (optional)
     tick_locations = np.arange(0, 5759 + 1, 360)
-    # Generate tick labels, resetting to "0h" after every 24 hours (1440 minutes)
     tick_labels = [f"{(minutes // 60) % 24}h" for minutes in tick_locations]
 
-    # Update the plt.xticks call to use hour_ticks
     plt.xticks(tick_locations, tick_labels)
     plt.xlim(0, 5760)
-    plt.ylim([0, 4])  # for example, to set the y-limit to 20% above max PV power
+    plt.ylim([0, 4])  
     for tick in season_starts:
-        plt.axvline(x=tick, color='k', linestyle='--')  # k is color black, you can choose any color
+        plt.axvline(x=tick, color='k', linestyle='--')  
 
-    # Set the thickness of the plot border lines
     for _, spine in ax.spines.items():
         spine.set_linewidth(1.5)
 
     # Increase the line width of the tick marks for visibility
-    ax.tick_params(which='both', width=2)  # Applies to both major and minor ticks
-    ax.tick_params(which='major', length=7)  # Only major ticks
-    ax.tick_params(which='minor', length=4, color='gray')  # Only minor ticks
+    ax.tick_params(which='both', width=2)  
+    ax.tick_params(which='major', length=7)
+    ax.tick_params(which='minor', length=4, color='gray')
 
-    # Add labels and title with a larger font size
-    plt.xlabel('Time (h)', fontsize=20)
+    plt.xlabel('Time (t)', fontsize=20)
     plt.ylabel('Power (kW)', fontsize=20)
-    # Make sure the legend is readable
-    plt.legend(fontsize='20', frameon=True, handlelength=0.5, labelspacing=0.2, handletextpad=0.3, borderpad=0.2, loc='upper left')  # Adjust the location and size as needed
+    plt.legend(fontsize='20', frameon=True, handlelength=0.5, labelspacing=0.2, handletextpad=0.3, borderpad=0.2, loc='upper left')
     plt.show()
 
 def calculate_total_energy(power_load, P_PV, self_consumption):
@@ -274,8 +254,7 @@ def data_per_season(
     SEASON_RANGES: np.array,
     DELTA_VALUES: np.array
 ) -> pd.DataFrame:
-
-    columns = ['E_PV', 'E_G2H', 'E_H2G', 'E_discharge', 'E_charge']
+    columns = ['E_PV', 'E_G2H', 'E_H2G', 'E_charge', 'E_discharge']
     num_seasons = len(SEASON_RANGES)
     num_energy_types = len(columns)
     num_scenarios = len(DELTA_VALUES)
@@ -288,18 +267,16 @@ def data_per_season(
 
         energy_season_si = total_energy_si.loc[season_start:season_end, columns].sum()
         energy_season_epv = total_energy_epv.loc[season_start:season_end, columns].sum()
-        
+
         energy_interpolated = np.array(data_interpolation(energy_season_si, energy_season_epv)).reshape(4,5).squeeze().T
 
         si_column = energy_season_si.to_numpy().reshape(-1,1)
         epv_column = energy_season_epv.to_numpy().reshape(-1,1)
 
-        print(energy_interpolated)
         combined_season_data = np.concatenate(
             [si_column, energy_interpolated, epv_column], axis=1
         )
-        
-        # Assign the entire (5, 6) block to the current season's slice.
+
         energy_season_total[season_idx, :, :] = combined_season_data.T
 
     return energy_season_total
@@ -307,111 +284,57 @@ def data_per_season(
 def plot_seasonal_stack(
     season_index: int, 
     season_name: str, 
-    seasonal_data: np.ndarray, 
-    delta_values: np.ndarray, 
+    seasonal_data: np.array, 
+    delta_values: np.array, 
     energy_load: float
 ) -> None:
     # 0:E_PV, 1:E_G2H, 2:E_H2G, 3:E_discharge, 4:E_charge
     e_pv_data = seasonal_data[season_index, :, 0]
     e_g2h_data = seasonal_data[season_index, :, 1]
-    e_discharge_data = seasonal_data[season_index, :, 3]
+    # e_h2g_data = seasonal_data[season_index, :, 2]
+    e_charge_data = seasonal_data[season_index, :, 3]
+    e_discharge_data = seasonal_data[season_index, :, 4]
 
     e_pv_perc = (e_pv_data / energy_load) * 100
     e_g2h_perc = (e_g2h_data / energy_load) * 100
+    # e_h2g_perc = (e_h2g_data / energy_load) * 100
     e_discharge_perc = (np.abs(e_discharge_data) / energy_load) * 100
+    e_charge_perc = (e_charge_data / energy_load) * 100
 
     plt.figure(figsize=(10, 6))
     plt.stackplot(
         delta_values, 
-        e_pv_perc, 
         e_g2h_perc, 
+        # e_h2g_perc, 
         e_discharge_perc,
-        labels=['E_PV', 'E_G2H', 'E_discharge'],
-        colors=['#FD841F', '#40679E', '#527853'] # Match colors to data order
+        e_pv_perc, 
+        # e_charge_perc,
+        labels=['E_G2H', 'E_discharge', 'E_PV'],
+        colors=['#40679E', '#527853', '#FD841F'] # Match colors to data order
     )
 
     # Use axhline for a clean horizontal line across the plot.
     plt.axhline(100, color='black', linestyle='--', label='Load')
-    
-    plt.title(f'Energy Contribution for {season_name}')
+    plt.fill_between(delta_values, [100,100,100,100,100,100], (e_charge_perc)+100, color='#AFC8AD', hatch='O', alpha =0.5, label='E_charge' )
+    plt.xlim(delta_values.min(), delta_values.max())
+    plt.ylim(0, max(110, plt.ylim()[1])) # Ensure the 100% line is visible
+    # for _, spine in ax.spines.items():
+    #     spine.set_linewidth(1.5)
+    #
+    # Increase the line width of the tick marks for visibility
+    plt.tick_params(which='both', width=2)  # Applies to both major and minor ticks
+    plt.tick_params(which='major', length=7)  # Only major ticks
+    plt.tick_params(which='minor', length=4, color='gray')  # Only minor ticks
+
+    # plt.title(f'Energy Contribution for {season_name}')
     plt.xlabel('Scenario (from SI to EPV)')
     plt.ylabel('Energy Contribution (% of Load)')
     plt.legend(loc='upper left')
     plt.grid(True, linestyle='--', alpha=0.6)
-    
-    # Set plot limits for better visualization
-    plt.xlim(delta_values.min(), delta_values.max())
-    plt.ylim(0, max(110, plt.ylim()[1])) # Ensure the 100% line is visible
 
     plt.show()
 
-if __name__ == "__main__":
-    PV_data = PV_power_generation(irradiance, temperature, parameters, LLE_parameters)
-
-    # Calculate self consumption for each technology
-    self_consumption_si = calculate_self_consumption(PV_data['P_Si'])
-    self_consumption_epv = calculate_self_consumption(PV_data['P_LLE'])
-
-    # Plot both technologies
-    stack_plot(power_load, self_consumption_si['P_G2H'], self_consumption_si['P_H2G'], self_consumption_si['Bat_charge'], self_consumption_si['Bat_discharge'], PV_data['P_Si'], 'Silicon')
-    stack_plot(power_load, self_consumption_epv['P_G2H'], self_consumption_epv['P_H2G'], self_consumption_epv['Bat_charge'], self_consumption_epv['Bat_discharge'], PV_data['P_LLE'], 'EPV')
-    # stack_plot(power_load, P_G2H_LLE, P_H2G_LLE, Bat_charge_LLE, Bat_discharge_LLE, PV_data['P_LLE'], 'LLE')
-
-    # Calculate energy consumed
-    total_energy_si = calculate_total_energy(power_load, PV_data['P_Si'], self_consumption_si)
-    total_energy_epv = calculate_total_energy(power_load, PV_data['P_LLE'], self_consumption_epv)
-
-    energy_load = (power_load.sum()/60)/1000 
-
-    # # interpolate values between known values
-    # interpolated_values = data_interpolation(total_energy_epv, total_energy_si)
-
-    # Rewriting this part
-    total_per_delta_mu = data_per_season(total_energy_epv, total_energy_si, SEASON_RANGES, DELTA_VALUES)
-    print('this is the details')
-    print(total_per_delta_mu[0,:,:])
-    season_names = ['Winter', 'Spring', 'Summer', 'Autumn']
-    for i, name in enumerate(season_names):
-        print(f"Generating plot for {name}...")
-        plot_seasonal_stack(
-            season_index=i,
-            season_name=name,
-            seasonal_data=total_per_delta_mu,
-            delta_values=DELTA_VALUES,
-            energy_load=energy_load # Assuming load might vary by season
-        )
-
-    plt.stackplot(DELTA_VALUES, (total_per_delta_mu[0,:,0]/energy_load)*100,
-                  labels=['E_G2H', 'E_discharge', 'E_PV'],
-                  colors=['#40679E', '#527853', '#FD841F'])
-
-    plt.show()
-    # Plot
-    plt.figure(figsize=(10, 6))
-    plt.stackplot(DELTA_VALUES, (total_per_delta_mu[0,:,:]/energy_load)*100, (np.abs(total_per_delta_mu[0,:,:])/energy_load)*100, (total_per_delta_mu[0,:,:]/energy_load)*100,
-                  labels=['E_G2H', 'E_discharge', 'E_PV'],
-                  colors=['#40679E', '#527853', '#FD841F'])
-    plt.plot([1,2], [100,100], label='Load', color='black')
-
-    plt.fill_between(DELTA_VALUES, [100,100,100,100,100,100], (total_per_delta_mu['E_charge_season']/energy_load)*100, color='#AFC8AD', hatch='O', alpha =0.5, label='E_charge' )
-    ax = plt.gca()  # Get the current Axes instance
-    plt.xlim(1, 2)
-    plt.ylim([0, 200])  # for example, to set the y-limit to 20% above max PV power
-    for _, spine in ax.spines.items():
-        spine.set_linewidth(1.5)
-
-    # Increase the line width of the tick marks for visibility
-    ax.tick_params(which='both', width=2)  # Applies to both major and minor ticks
-    ax.tick_params(which='major', length=7)  # Only major ticks
-    ax.tick_params(which='minor', length=4, color='gray')  # Only minor ticks
-
-    # Add labels and title with a larger font size
-    plt.xlabel('δ_material', fontsize=20)
-    plt.ylabel('Energy % to Load', fontsize=20)
-    plt.legend(fontsize='20', frameon=True, handlelength=0.5, labelspacing=0.1, handletextpad=0.3, borderpad=0.1, loc='upper left')  # Adjust the location and size as needed
-    plt.show()
-
-
+def plot_soc():
     # Splitting the data by season
     seasons = ['Winter', 'Spring', 'Summer', 'Autumn']
     split_indices = [1440, 2880, 4320, 5760]
@@ -477,4 +400,35 @@ if __name__ == "__main__":
     # Add labels and title with a larger font size
     plt.xlabel('Season', fontsize=20)
     plt.show()
-        
+
+if __name__ == "__main__":
+    PV_data = PV_power_generation(irradiance, temperature, parameters, LLE_parameters)
+
+    # Calculate self consumption for each technology
+    self_consumption_si = calculate_self_consumption(PV_data['P_Si'])
+    self_consumption_epv = calculate_self_consumption(PV_data['P_LLE'])
+
+    # Plot both technologies
+    stack_plot(power_load, self_consumption_si['P_G2H'], self_consumption_si['P_H2G'], self_consumption_si['Bat_charge'], self_consumption_si['Bat_discharge'], PV_data['P_Si'], 'Silicon')
+    stack_plot(power_load, self_consumption_epv['P_G2H'], self_consumption_epv['P_H2G'], self_consumption_epv['Bat_charge'], self_consumption_epv['Bat_discharge'], PV_data['P_LLE'], 'EPV')
+
+    # Calculate energy consumed
+    total_energy_si = calculate_total_energy(power_load, PV_data['P_Si'], self_consumption_si)
+    total_energy_epv = calculate_total_energy(power_load, PV_data['P_LLE'], self_consumption_epv)
+    # interpolating values for plots
+    interpolated_values = data_interpolation(total_energy_epv, total_energy_si)
+
+    total_per_delta_mu = data_per_season(total_energy_epv, total_energy_si, SEASON_RANGES, DELTA_VALUES)
+
+    season_names = ['Winter', 'Spring', 'Summer', 'Autumn']
+    for i, name in enumerate(season_names):
+        energy_load = ((power_load[SEASON_RANGES[i, 0]:SEASON_RANGES[i, 1]].sum()/60)/1000)
+        print(f"Generating plot for {name}...")
+        plot_seasonal_stack(
+            season_index=i,
+            season_name=name,
+            seasonal_data=total_per_delta_mu,
+            delta_values=DELTA_VALUES,
+            energy_load=energy_load
+        )
+    plot_soc()
