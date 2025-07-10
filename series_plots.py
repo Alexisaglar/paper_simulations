@@ -329,8 +329,8 @@ def plot_seasonal_stack(
         'xtick.labelsize': 16,
         'ytick.labelsize': 16,
         'legend.fontsize': 18,
-        'text.usetex': True,
-        'font.family': "DejaVu Sans"
+        # 'text.usetex': True,
+        # 'font.family': "DejaVu Sans"
     })
 
     # Use axhline for a clean horizontal line across the plot.
