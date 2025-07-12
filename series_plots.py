@@ -1,3 +1,4 @@
+import os
 from pvlib import pvsystem
 import numpy as np
 import pandas as pd
@@ -13,8 +14,9 @@ BETA_EPV = 0.025
 TEMP_STC = 25
 IRRADIANCE_STC = 1000
 
-# Constanplot_soc()
-BATTERY_CAPACITY= 5000  # Battery capacity in kWh, for example
+BESS_CAPACITIES_KWH = [0.00000000000000000001, 5, 10, 15] 
+# Constant
+BATTERY_CAPACITY= 15000  # Battery capacity in kWh, for example
 BATTERY_CHARGE_EFF = 0.95  # Charging efficiency
 BATTERY_DISCHARGE_EFF = 0.95  # Discharging efficiency
 BATTERY_CHARGE_POWER_MAX = 2500  # Charging power max
@@ -30,7 +32,6 @@ SEASON_RANGES = np.array(
     np.array([4320, 5759]),
     ))
 
-
 irradiance = pd.read_csv('data/irradiance_seasons.csv')
 irradiance = np.array(irradiance['GHI'].to_numpy()).reshape(-1,1).squeeze()
 temperature = pd.read_csv('data/temperature_seasons.csv')
@@ -44,6 +45,8 @@ energy_h2g_season = pd.Series(len(DELTA_VALUES))
 energy_discharge_season = pd.Series(len(DELTA_VALUES))
 energy_charge_season = pd.Series(len(DELTA_VALUES))
 energy_season_total = np.zeros((len(SEASON_RANGES), 5, len(DELTA_VALUES)))
+
+all_results_data = []
 
 # color scheme
 colors = {
@@ -162,7 +165,6 @@ def stack_plot(
     P_PV: pd.Series,
     name: str
 ) -> None:
-
     # Plot figure
     plt.figure(figsize=(12, 6))
     plt.rcParams.update({'font.size': 20})  
@@ -296,7 +298,7 @@ def plot_seasonal_stack(
     seasonal_data: np.array, 
     delta_values: np.array, 
     energy_load: float,
-    name: str,
+    name: str
 ) -> None:
     # 0:E_PV, 1:E_G2H, 2:E_H2G, 3:E_discharge, 4:E_charge
     e_pv_data = seasonal_data[season_index, :, 0]
@@ -347,26 +349,60 @@ def plot_seasonal_stack(
     plt.tick_params(which='minor', length=4, color='gray')  # Only minor ticks
 
     # plt.title(f'Energy Contribution for {season_name}')
-    plt.xlabel(r'$\delta_\mu $')
+    plt.xlabel(r'$\delta_\mu$')
     plt.ylabel(r'Energy to Load (%)')
     plt.legend(loc='upper left')
     plt.grid(True, linestyle='--', alpha=0.6)
     plt.savefig(f'chapter_3_images/{name}_stackplot.png', format='png', dpi=300, bbox_inches='tight')
 
     # plt.show()
+    # using column 0 for silicon and 5 for epv
+    ssr_si = ((energy_load.sum() - e_g2h_data[0].sum()) / energy_load.sum())
+    ssr_epv = ((energy_load.sum() - e_g2h_data[5].sum()) / energy_load.sum())
 
-def plot_soc():
+    scr_si = ((energy_load.sum() - e_g2h_data[0].sum()) / e_pv_data[0].sum())
+    scr_epv = ((energy_load.sum() - e_g2h_data[5].sum()) /e_pv_data[5].sum())
+
+    print(f'SEASON: {season_name}')
+    print(f'BESS: {BATTERY_CAPACITY}')
+    print(f'Total Load energy: {energy_load.sum()}')
+    print(f'Total si PV: {total_energy_si['E_PV'].sum()}')
+    print(f'Total epv PV: {total_energy_epv['E_PV'].sum()}')
+    print(f'SCR_epv: {scr_epv}')
+    print(f'SCR_si: {scr_si}')
+    print(f'SSR_epv: {ssr_epv}')
+    print(f'SSR_si: {ssr_si}\n')
+
+    all_results_data.append({
+        'BESS Capacity': capacity_kwh, 'Season': season_name, 'PV Technology': 'Si-PV',
+        'SSR': ssr_si, 'SCR': scr_si
+    })
+    all_results_data.append({
+        'BESS Capacity': capacity_kwh, 'Season': season_name, 'PV Technology': 'LLE-PV',
+        'SSR': ssr_epv, 'SCR': scr_epv
+    })
+
+def plot_soc(self_consumption_epv, self_consumption_si):
     # Splitting the data by season
     seasons = ['Winter', 'Spring', 'Summer', 'Autumn']
     split_indices = [1440, 2880, 4320, 5760]
+    
     soc_si_seasons = np.split(self_consumption_si['SoC'], split_indices[:-1])  # Exclude the last index to match the number of seasons
     soc_lle_seasons = np.split(self_consumption_epv['SoC'], split_indices[:-1])
+
+    for i, season in enumerate(seasons):
+        print(f'Max SOC {season} Si: {soc_si_seasons[i].max()}')
+        print(f'Max SOC {season} EPV: {soc_lle_seasons[i].max()}')
+        print(f'Mean SOC {season} Si: {soc_si_seasons[i].mean()}')
+        print(f'Mean SOC {season} EPV: {soc_lle_seasons[i].mean()}')
+        print('\n')
+    print('\n')
 
     # Preparing data for plotting
     data_to_plot_si = [season_data for season_data in soc_si_seasons]
     data_to_plot_lle = [season_data for season_data in soc_lle_seasons]
     data_to_plot = [val for pair in zip(data_to_plot_si, data_to_plot_lle) for val in pair]  # Interleave Si and LLE data
-    labels = [f'{tech}\n{season}' for season in seasons for tech in ['Si', 'LLE']]
+    labels = [f'{tech}\n{season}' for season in seasons for tech in [r'\mu_{si}', '\mu_{epv}']]
 
 
     # Define colors for the boxplots
@@ -399,7 +435,17 @@ def plot_soc():
         patch.set_facecolor(color)
 
     # Set font size and family for the plot
-    plt.rcParams.update({'font.size': 20, 'font.family': 'Arial'})
+    # plt.rcParams.update({'font.size': 20, 'font.family': 'Arial'})
+    plt.rcParams.update({
+        'font.size': 18,
+        'axes.labelsize': 20,
+        'axes.titlesize': 24,
+        'xtick.labelsize': 16,
+        'ytick.labelsize': 16,
+        'legend.fontsize': 18,
+        # 'text.usetex': True,
+        # 'font.family': "DejaVu Sans"
+    })
 
     # Setting axis labels and title
     ax.set_ylabel('SoC (%)')
@@ -420,37 +466,159 @@ def plot_soc():
 
     # Add labels and title with a larger font size
     plt.xlabel('Season', fontsize=20)
-    plt.show()
+    plt.savefig(f'chapter_3_images/SOC_{BATTERY_CAPACITY}.png', format='png', dpi=300, bbox_inches='tight')
+    # plt.show()
+
+def plot_bess_ssr_analysis(results_df, output_file='BESS_SSR_Analysis_Plot.png'):
+    """ This new function creates the plot you asked for. """
+    seasons = ['Winter', 'Spring', 'Summer', 'Autumn']
+    fig, axes = plt.subplots(2, 2, figsize=(14, 12), sharey=True)
+    axes = axes.flatten()
+    
+    tech_colors = {'Silicon': 'cornflowerblue', 'Organic': 'seagreen'}
+    tech_labels = {'Silicon': r'Si-PV ($\mu_{si}$)', 'Organic': r'LLE-PV ($\mu_{epv}$)'}
+    
+    for i, season in enumerate(seasons):
+        ax = axes[i]
+        season_df = results_df[results_df['Season'] == season]
+        
+        for tech in ['Silicon', 'Organic']:
+            tech_df = season_df[season_df['PV Technology'] == tech]
+            ax.plot(tech_df['BESS Capacity (kWh)'], tech_df['SSR'], marker='o', linestyle='-', label=tech_labels[tech], color=tech_colors[tech])
+
+        ax.set_title(season, fontsize=16, fontweight='bold')
+        ax.set_ylabel('Self-Sufficiency Ratio (SSR)', fontsize=12)
+        ax.set_ylim(0, 1)
+        ax.set_xticks(results_df['BESS Capacity (kWh)'].unique())
+        ax.grid(axis='y', linestyle='--', alpha=0.7)
+        if i >= 2:
+            ax.set_xlabel('BESS Capacity (kWh)', fontsize=12)
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='lower center', ncol=2, bbox_to_anchor=(0.5, 0.02), fontsize=14)
+    fig.suptitle('Seasonal Self-Sufficiency vs. BESS Capacity', fontsize=20, y=0.98)
+    plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+    plt.savefig(output_file, dpi=300)
+    print(f"\nBESS analysis plot saved as '{output_file}'")
+
+def plot_seasonal_bar_charts(results_df, output_dir='chapter_3_images'):
+    """
+    Generates and saves one bar chart per season, plotting SSR and SCR together
+    for each PV technology against BESS capacity.
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        print(f"Created directory: {output_dir}")
+
+    from matplotlib.patches import Patch # Needed for custom legend
+
+    seasons = results_df['Season'].unique()
+    tech_colors = {'Si-PV': 'cornflowerblue', 'LLE-PV': 'seagreen'}
+
+    for season in seasons:
+        plt.style.use('default')
+        fig, ax = plt.subplots(figsize=(12, 8))
+
+        # Filter data for the current season and handle potential inf values
+        season_df = results_df[results_df['Season'] == season].copy()
+        season_df.replace([np.inf, -np.inf], 0, inplace=True)
+
+        # Extract the four data series to be plotted
+        ssr_si_data = season_df[season_df['PV Technology'] == 'Si-PV']['SSR']
+        ssr_lle_data = season_df[season_df['PV Technology'] == 'LLE-PV']['SSR']
+        scr_si_data = season_df[season_df['PV Technology'] == 'Si-PV']['SCR']
+        scr_lle_data = season_df[season_df['PV Technology'] == 'LLE-PV']['SCR']
+
+        # --- Bar Positioning ---
+        x = np.arange(len(ssr_si_data))  # x-axis positions for BESS capacities
+        width = 0.2  # The width of a single bar
+
+        # Plot the four groups of bars
+        rects1 = ax.bar(x - 1.5*width, ssr_si_data, width, label='SSR Si-PV', color=tech_colors['Si-PV'])
+        rects2 = ax.bar(x - 0.5*width, ssr_lle_data, width, label='SSR LLE-PV', color=tech_colors['LLE-PV'])
+        rects3 = ax.bar(x + 0.5*width, scr_si_data, width, label='SCR Si-PV', color=tech_colors['Si-PV'], hatch='//')
+        rects4 = ax.bar(x + 1.5*width, scr_lle_data, width, label='SCR LLE-PV', color=tech_colors['LLE-PV'], hatch='//')
+
+        # --- Formatting and Labels ---
+        ax.set_ylabel('Ratio Value', fontsize=14)
+        ax.set_xlabel('BESS Capacity (kWh)', fontsize=14)
+        ax.set_title(f'{season}: Self-Sufficiency & Self-Consumption Ratios', fontsize=18, fontweight='bold')
+        ax.set_xticks(x)
+        ax.set_xticklabels([f'{int(c)} kWh' for c in season_df['BESS Capacity'].unique()], fontsize=12)
+        
+        # Adjust y-axis limit and add a grid
+        max_ratio_val = season_df[['SSR', 'SCR']].max().max()
+        ax.set_ylim(0, max(1.1, max_ratio_val * 1.15)) # Dynamic y-limit
+        ax.yaxis.grid(True, linestyle='--', which='major', color='grey', alpha=0.7)
+        ax.set_axisbelow(True)
+
+        # Add data labels on top of the bars
+        for rect_group in [rects1, rects2, rects3, rects4]:
+            ax.bar_label(rect_group, padding=3, fmt='%.2f', fontsize=9)
+            
+        # --- Custom Legend ---
+        legend_elements = [
+            Patch(facecolor=tech_colors['Si-PV'], label='Si-PV ($\mu_{si}$)', ec='black'),
+            Patch(facecolor=tech_colors['LLE-PV'], label='LLE-PV ($\mu_{epv}$)', ec='black'),
+            Patch(facecolor='white', edgecolor='grey', label='SSR'),
+            Patch(facecolor='white', edgecolor='grey', hatch='//', label='SCR')
+        ]
+        ax.legend(handles=legend_elements, fontsize=12, loc='upper left')
+
+        fig.tight_layout()
+
+        # --- Save the Figure ---
+        output_filename = os.path.join(output_dir, f'{season}_Combined_Ratios.png')
+        plt.savefig(output_filename, dpi=300)
+        print(f"Saved plot: {output_filename}")
+        plt.close(fig)
 
 if __name__ == "__main__":
     PV_data = PV_power_generation(irradiance, temperature, parameters, LLE_parameters)
 
-    # Calculate self consumption for each technology
-    self_consumption_si = calculate_self_consumption(PV_data['P_Si'])
-    self_consumption_epv = calculate_self_consumption(PV_data['P_LLE'])
+    # 3. Run Simulation Loop
+    for i, capacity_kwh in enumerate(BESS_CAPACITIES_KWH):
+        BATTERY_CAPACITY = capacity_kwh * 1000
 
-    # Plot both technologies
-    stack_plot(power_load, self_consumption_si['P_G2H'], self_consumption_si['P_H2G'], self_consumption_si['Bat_charge'], self_consumption_si['Bat_discharge'], PV_data['P_Si'], 'Silicon')
-    stack_plot(power_load, self_consumption_epv['P_G2H'], self_consumption_epv['P_H2G'], self_consumption_epv['Bat_charge'], self_consumption_epv['Bat_discharge'], PV_data['P_LLE'], 'EPV')
+        # Calculate self consumption for each technology
+        self_consumption_si = calculate_self_consumption(PV_data['P_Si'])
+        self_consumption_epv = calculate_self_consumption(PV_data['P_LLE'])
 
-    # Calculate energy consumed
-    total_energy_si = calculate_total_energy(power_load, PV_data['P_Si'], self_consumption_si)
-    total_energy_epv = calculate_total_energy(power_load, PV_data['P_LLE'], self_consumption_epv)
-    # interpolating values for plots
-    interpolated_values = data_interpolation(total_energy_epv, total_energy_si)
+        # Plot both technologies
+        stack_plot(power_load, self_consumption_si['P_G2H'], self_consumption_si['P_H2G'], self_consumption_si['Bat_charge'], self_consumption_si['Bat_discharge'], PV_data['P_Si'], 'Silicon')
+        stack_plot(power_load, self_consumption_epv['P_G2H'], self_consumption_epv['P_H2G'], self_consumption_epv['Bat_charge'], self_consumption_epv['Bat_discharge'], PV_data['P_LLE'], 'EPV')
 
-    total_per_delta_mu = data_per_season(total_energy_epv, total_energy_si, SEASON_RANGES, DELTA_VALUES)
+        # Calculate energy consumed
+        total_energy_si = calculate_total_energy(power_load, PV_data['P_Si'], self_consumption_si)
+        total_energy_epv = calculate_total_energy(power_load, PV_data['P_LLE'], self_consumption_epv)
+        # interpolating values for plots
+        interpolated_values = data_interpolation(total_energy_epv, total_energy_si)
+        total_per_delta_mu = data_per_season(total_energy_epv, total_energy_si, SEASON_RANGES, DELTA_VALUES)
 
-    season_names = ['Winter', 'Spring', 'Summer', 'Autumn']
-    for i, name in enumerate(season_names):
-        energy_load = ((power_load[SEASON_RANGES[i, 0]:SEASON_RANGES[i, 1]].sum()/60)/1000)
-        print(f"Generating plot for {name}...")
-        plot_seasonal_stack(
-            season_index=i,
-            season_name=name,
-            seasonal_data=total_per_delta_mu,
-            delta_values=DELTA_VALUES,
-            energy_load=energy_load,
-            name=name
-        )
-    # plot_soc()
+        season_names = ['Winter', 'Spring', 'Summer', 'Autumn']
+        for i, name in enumerate(season_names):
+            energy_load = ((power_load[SEASON_RANGES[i, 0]:SEASON_RANGES[i, 1]].sum()/60)/1000)
+            print(f"Generating plot for {name}...")
+            plot_seasonal_stack(
+                season_index=i,
+                season_name=name,
+                seasonal_data=total_per_delta_mu,
+                delta_values=DELTA_VALUES,
+                energy_load=energy_load,
+                name=name
+            )
+        plot_soc(self_consumption_epv, self_consumption_si)
+        # plot_seasonal_bar_charts(all_results_data)
+    # 1. Convert the list of results into a pandas DataFrame *after* the loop is finished
+        print("\nConverting collected data into a DataFrame...")
+        results_df = pd.DataFrame(all_results_data)
+
+        # Optional: Print the DataFrame to verify its contents
+        print("--- Aggregated Simulation Results ---")
+        print(results_df.to_string())
+
+        # 2. Call the plotting function *once* with the complete DataFrame
+        print("\nGenerating final bar charts...")
+        plot_seasonal_bar_charts(results_df)
+        # print(self_consumption_epv['SoC'])
+        # print(self_consumption_si['SoC'])
